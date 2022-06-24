@@ -122,6 +122,6 @@ openssl ca -config ${openssl_conf} -passin file:${cadir}/ca/ca.key.pin \
     -extfile "${ext_file}" -batch -infiles "${csr_file}"
 
 # cleanup
-rm -iv ${openssl_conf}
+rm -v ${openssl_conf}
 
 # vim: ft=sh

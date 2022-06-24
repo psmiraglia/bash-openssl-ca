@@ -1,0 +1,14 @@
+authorityKeyIdentifier = keyid:always,issuer
+basicConstraints = critical,CA:TRUE
+certificatePolicies = @polsect
+keyUsage = critical,keyCertSign,cRLSign
+subjectKeyIdentifier = hash
+
+[ polsect ]
+policyIdentifier = 1.2.3.4.1455.67.89.5
+userNotice.1 = @notice
+
+[ notice ]
+explicitText = "The CA is an internal resource. Certificates that are issued by this CA are for internal use only."
+organization = "ACME"
+noticeNumbers = 1

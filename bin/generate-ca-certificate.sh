@@ -110,15 +110,22 @@ pushd ${cadir}/ca > /dev/null
     openssl_conf=$(mktemp)
     cat <<EOF > ${openssl_conf}
 [ req ]
+default_bits = 3072
+default_md = sha256
 distinguished_name = req_dn
+encrypt_key = yes
+prompt = no
 x509_extensions = v3_ext
 
 [ req_dn ]
+CN = ${cn}
+O = ${organization}
+OU = Certification Authority
 
 [ v3_ext ]
-basicConstraints = CA:TRUE
+basicConstraints = critical,CA:TRUE
 certificatePolicies = @polsect
-keyUsage = keyCertSign
+keyUsage = critical,keyCertSign,cRLSign
 subjectKeyIdentifier = hash
 
 [ polsect ]
@@ -132,15 +139,12 @@ noticeNumbers = 1
 EOF
 
     # generate keypair
-    key_type="rsa:3072"
     days=3650  # 10 years
-    subject="/O=${organization}/CN=${cn}"
-    _info "Creating ${key_type} keypair (${key_file}/${crt_file})"
+    _info "Creating keypair (${key_file}/${crt_file})"
     openssl rand -hex -out ${key_pin_file} 32
     openssl req -new -config ${openssl_conf} \
-        -newkey ${key_type} -passout file:${key_pin_file} -keyout ${key_file} \
-        -x509 -sha256 -days ${days} -out ${crt_file} \
-        -subj "${subject}"
+        -passout file:${key_pin_file} -keyout ${key_file} \
+        -x509 -days ${days} -out ${crt_file}
 
     # dump certificate for easy reading
     _info "Dumping certificate (${crt_dump_file})"
@@ -151,7 +155,7 @@ EOF
     openssl rand -hex -out ${p12_pin_file} 32
     openssl pkcs12 \
         -export -out ${p12_file} -passout file:${p12_pin_file} \
-        -inkey ${key_file} -passin file:${key_pin_file} -in ${crt_file} -name "${subject}"
+        -inkey ${key_file} -passin file:${key_pin_file} -in ${crt_file} -name "${cn}"
 
     # cleanup
     rm ${openssl_conf}
