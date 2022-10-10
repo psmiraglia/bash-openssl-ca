@@ -76,6 +76,7 @@ if [ -z "${cadir}" ]; then
     exit_abnormal
 fi
 
+
 # check if cadir already exists
 
 if [ -d "${cadir}" ]; then
@@ -86,12 +87,62 @@ fi
 # doit
 
 _info "Creating directories"
-mkdir -pv ${cadir}/{certs,crl,ca}
+mkdir -pv ${cadir}/{certs,crl,ca,config}
+
+cadir=$(cd ${cadir} && pwd)
+echo ${cadir}
 
 pushd ${cadir} > /dev/null
-    echo 01 > serial
-    echo 01 > crlnumber
+    echo "$(openssl rand -hex 4)00000001" > serial
+    echo "$(openssl rand -hex 4)00000001" > crlnumber
     touch index.txt
+    cat <<EOF > ${cadir}/config/openssl.conf
+dir = ${cadir}
+
+[ ca ]
+default_ca             = CA_default
+
+[ CA_default ]
+serial                 = \$dir/serial
+database               = \$dir/index.txt
+new_certs_dir          = \$dir/certs
+certificate            = \$dir/ca/ca.crt
+private_key            = \$dir/ca/ca.key
+crldir                 = \$dir/crl
+crlnumber              = \$dir/crlnumber
+crl                    = \$crldir/crl.pem
+default_days           = 720
+default_crl_days       = 30
+default_md             = sha256
+policy                 = policy_match
+
+[ policy_match ]
+organizationName       = supplied
+organizationalUnitName = supplied
+commonName             = supplied
+
+[ req ]
+default_bits = 3072
+default_md = sha256
+distinguished_name = req_dn
+encrypt_key = yes
+prompt = no
+x509_extensions = v3_ext
+
+[ req_dn ]
+CN = %TO-BE-SET%
+O = %TO-BE-SET%
+OU = Certification Authority
+
+[ v3_ext ]
+basicConstraints = critical,CA:TRUE
+crlDistributionPoints = cdp
+keyUsage = critical,keyCertSign,cRLSign
+subjectKeyIdentifier = hash
+
+[ cdp ]
+fullname = URI:%TO-BE-SET%
+EOF
 popd > /dev/null
 
 _info "Done"
