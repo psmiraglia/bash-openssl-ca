@@ -58,7 +58,7 @@ ext_file=""
 while getopts ":d:s:h" opt; do
     case "${opt}" in
         d)
-            cadir=${OPTARG}
+            cadir=$(cd ${OPTARG} && pwd)
             ;;
         s)
             serial=${OPTARG}
@@ -86,39 +86,19 @@ if [ ! -d "${cadir}" ]; then
     exit 1
 fi
 
-# generate openssl conf
-openssl_conf=$(mktemp)
-cat <<EOF > ${openssl_conf}
-dir = ${cadir}
+openssl_conf=${cadir}/config/openssl.conf
+if [ $(grep -ic "%TO-BE-SET%" ${openssl_conf}) -gt 0 ]; then
+    _error "OpenSSL configuration still contains placeholders (${openssl_conf})"
+    exit 1
+fi
 
-[ ca ]
-default_ca             = CA_default
-
-[ CA_default ]
-serial                 = \$dir/serial
-database               = \$dir/index.txt
-new_certs_dir          = \$dir/certs
-certificate            = \$dir/ca/ca.crt
-private_key            = \$dir/ca/ca.key
-crldir                 = \$dir/crl
-crlnumber              = \$dir/crlnumber
-crl                    = \$crldir/crl.pem
-default_days           = 720
-default_crl_days       = 30
-default_md             = sha256
-policy                 = policy_match
-
-[ policy_match ]
-organizationName       = supplied
-organizationalUnitName = supplied
-commonName             = supplied
-EOF
-
-# issue certificate
+# revoke certificate
 openssl ca -config ${openssl_conf} -passin file:${cadir}/ca/ca.key.pin \
     -revoke ${cadir}/certs/${serial}.pem
 
-# cleanup
-rm -v ${openssl_conf}
+# generate crl
+openssl ca -config ${openssl_conf} -gencrl \
+    -passin file:${cadir}/ca/ca.key.pin \
+    -out ${cadir}/crl/crl.pem
 
 # vim: ft=sh
