@@ -41,7 +41,7 @@ _error() {
 # functions
 
 usage() {
-    echo "Usage: ${0} -d <cadir> -o <organization> -c <common name> [-h]" 1>&2
+    echo "Usage: ${0} -d <cadir> [-h]" 1>&2
 }
 
 
@@ -53,18 +53,10 @@ exit_abnormal() {
 # parse input arguments
 
 cadir=""
-organization=""
-cn=""
-while getopts ":d:o:c:h" opt; do
+while getopts ":d:h" opt; do
     case "${opt}" in
         d)
-            cadir=${OPTARG}
-            ;;
-        o)
-            organization=${OPTARG}
-            ;;
-        c)
-            cn=${OPTARG}
+            cadir=$(cd ${OPTARG} && pwd)
             ;;
         h)
             usage
@@ -80,7 +72,7 @@ while getopts ":d:o:c:h" opt; do
     esac
 done
 
-if [ -z "${cadir}" ] || [ -z "${organization}" ] || [ -z "${cn}" ]; then
+if [ -z "${cadir}" ]; then
     exit_abnormal
 fi
 
@@ -89,10 +81,18 @@ if [ ! -d "${cadir}/ca" ]; then
     exit 1
 fi
 
+openssl_conf=${cadir}/config/openssl.conf
+if [ $(grep -ic "%TO-BE-SET%" ${openssl_conf}) -gt 0 ]; then
+    _error "OpenSSL configuration still contains placeholders (${openssl_conf})"
+    exit 1
+fi
+
 pushd ${cadir}/ca > /dev/null
     # files
     key_file="ca.key"
     key_pin_file="${key_file}.pin"
+    csr_file="ca.csr"
+    csr_dump_file="${csr_file}.txt"
     crt_file="ca.crt"
     crt_dump_file="${crt_file}.txt"
     p12_file="ca.p12"
@@ -107,58 +107,39 @@ pushd ${cadir}/ca > /dev/null
     done
 
     # generate openssl configuration
-    openssl_conf=$(mktemp)
-    cat <<EOF > ${openssl_conf}
-[ req ]
-default_bits = 3072
-default_md = sha256
-distinguished_name = req_dn
-encrypt_key = yes
-prompt = no
-x509_extensions = v3_ext
 
-[ req_dn ]
-CN = ${cn}
-O = ${organization}
-OU = Certification Authority
-
-[ v3_ext ]
-basicConstraints = critical,CA:TRUE
-certificatePolicies = @polsect
-keyUsage = critical,keyCertSign,cRLSign
-subjectKeyIdentifier = hash
-
-[ polsect ]
-policyIdentifier = 1.2.3.4.1455.67.89.5
-userNotice.1 = @notice
-
-[ notice ]
-explicitText = "The CA is an internal resource. Certificates that are issued by this CA are for internal use only."
-organization = "${organization}"
-noticeNumbers = 1
-EOF
-
-    # generate keypair
-    days=3650  # 10 years
-    _info "Creating keypair (${key_file}/${crt_file})"
+    # generate privkey
+    _info "Generate privkey (${key_file}/${key_pin_file})"
     openssl rand -hex -out ${key_pin_file} 32
+    openssl genrsa -des3 -out ${key_file} -passout file:${key_pin_file} 3072
+
+    # generate csr
+    _info "Generate CSR (${csr_file})"
     openssl req -new -config ${openssl_conf} \
-        -passout file:${key_pin_file} -keyout ${key_file} \
-        -x509 -days ${days} -out ${crt_file}
+        -key ${key_file} -passin file:${key_pin_file} \
+        -out ${csr_file}
+    _info "Dump CSR for easy reading (${csr_dump_file})"
+    openssl req -in  ${csr_file} -text -out ${csr_dump_file}
+
+    # issue certificate
+    _info "Issue certificate (${crt_file})"
+    days=3650  # 10 years
+    openssl x509 -req -in ${csr_file} \
+        -signkey ${key_file} -passin file:${key_pin_file} -sha256 \
+        -days ${days} -extfile ${openssl_conf} -extensions v3_ext \
+        -out ${crt_file}
 
     # dump certificate for easy reading
-    _info "Dumping certificate (${crt_dump_file})"
+    _info "Dump certificate for easy reading (${crt_dump_file})"
     openssl x509 -noout -text -in ${crt_file} -out ${crt_dump_file}
 
     # generate PKCS12
-    _info "Creating PKCS12 (${p12_file})"
+    _info "Create PKCS12 (${p12_file})"
     openssl rand -hex -out ${p12_pin_file} 32
     openssl pkcs12 \
         -export -out ${p12_file} -passout file:${p12_pin_file} \
-        -inkey ${key_file} -passin file:${key_pin_file} -in ${crt_file} -name "${cn}"
+        -inkey ${key_file} -passin file:${key_pin_file} -in ${crt_file}
 
-    # cleanup
-    rm ${openssl_conf}
 popd > /dev/null
 
 # vim: ft=sh

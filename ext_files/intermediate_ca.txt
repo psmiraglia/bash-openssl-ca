@@ -5,7 +5,7 @@ keyUsage = critical,keyCertSign,cRLSign
 subjectKeyIdentifier = hash
 
 [ polsect ]
-policyIdentifier = 1.2.3.4.1455.67.89.5
+policyIdentifier = 2.5.29.32.0
 userNotice.1 = @notice
 
 [ notice ]
