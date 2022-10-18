@@ -6,10 +6,17 @@ Init the CA structure
 $ ./helpers/init-ca.sh -d TestCA
 ~~~
 
+Adapt the configuration of OpenSSL according to your needs
+
+~~~
+$ cd TestCA/config
+$ editor openssl.conf
+~~~
+
 Generate the CA keypair
 
 ~~~
-$ ./bin/generate-ca-certificate.sh -d TestCA -o ACME -c "Root CA"
+$ ./bin/generate-ca-certificate.sh -d TestCA
 ~~~
 
 Issue a certificate from a CSR
@@ -24,14 +31,18 @@ Final structure
 $ tree TestCA
 TestCA
 ├── ca
-│   ├── ca.crt      <-- CA certificate
+│   ├── ca.crt                <-- CA certificate
 │   ├── ca.crt.txt
-│   ├── ca.key      <-- CA private key
-│   ├── ca.key.pin
+│   ├── ca.csr
+│   ├── ca.csr.txt
+│   ├── ca.key                <-- CA private key (encrypted)
+│   ├── ca.key.pin            <-- CA private key (passphrase)
 │   ├── ca.p12
 │   └── ca.p12.pin
 ├── certs
-│   └── 01.pem      <-- Issued certificate
+│   └── D644B41300000001.pem  <-- Issued certificate
+├── config
+│   └── openssl.conf
 ├── crl
 ├── crlnumber
 ├── index.txt
